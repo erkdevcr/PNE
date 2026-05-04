@@ -811,7 +811,7 @@
     <h2>&#127941; Examen finalizado</h2>
     <p class="sub">Tu resultado en el examen de pr&aacute;ctica</p>
     <div class="sc-nums">
-      <div class="sc-box" id="sb-pct"><span class="bv" id="sc-pct"></span><span class="bl">Porcentaje</span></div>
+      <div class="sc-box" id="sb-pct"><span class="bv" id="sc-pct"></span><span class="bl" id="sc-pct-lbl">Porcentaje</span></div>
     </div>
     <div class="sc-stats">
       <div class="sc-stat"><span class="ss-v" id="sc-answered"></span><span class="ss-l">Respondidas</span></div>
@@ -2333,7 +2333,21 @@ function fmtLong(s){
   if(sc>0||parts.length===0) parts.push(sc+(sc===1?' segundo':' segundos'));
   return parts.join(' ');
 }
+/* ── Wake Lock: pantalla encendida durante el examen ── */
+var _wakeLock=null;
+function _acquireWakeLock(){
+  if(!('wakeLock' in navigator)) return;
+  navigator.wakeLock.request('screen').then(function(wl){_wakeLock=wl;}).catch(function(){});
+}
+function _releaseWakeLock(){
+  if(_wakeLock){_wakeLock.release().catch(function(){});_wakeLock=null;}
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible'&&!done&&_wakeLock===null) _acquireWakeLock();
+});
+
 function startClock(){
+  _acquireWakeLock();
   document.getElementById('clock-wrap').classList.add('on');
   tint=setInterval(function(){
     secs--;
@@ -2573,7 +2587,7 @@ function confirmFinish(){
 
 /* ── finish ── */
 function finish(){
-  done=true; clearInterval(tint); document.getElementById('clock-wrap').classList.remove('on'); clearInterval(otint);
+  done=true; clearInterval(tint); _releaseWakeLock(); document.getElementById('clock-wrap').classList.remove('on'); clearInterval(otint);
   window.removeEventListener('beforeunload', _beforeUnload);
   document.getElementById('timesup').classList.remove('on');
   saveAttempt();
@@ -2591,10 +2605,12 @@ function finish(){
   var ok=0; ans.forEach(function(a,i){if(a===Q[i].an)ok++;});
   var answered=ans.filter(function(a){return a!==null;}).length;
   var wrong=answered-ok;
-  var pct=Math.round(ok/N*100);
+  var partial=answered<N;
+  var pct=answered>0?(partial?Math.round(ok/answered*100):Math.round(ok/N*100)):0;
   var cls=pct>=70?'hi':pct>=50?'md':'lo';
   document.getElementById('sc-pct').textContent=pct+'%';
   document.getElementById('sb-pct').className='sc-box '+cls;
+  document.getElementById('sc-pct-lbl').textContent=partial?'Porc. Parcial':'Porcentaje';
   document.getElementById('sc-answered').textContent=answered+' de '+N;
   document.getElementById('sc-correct').textContent=ok;
   document.getElementById('sc-wrong').textContent=wrong;
